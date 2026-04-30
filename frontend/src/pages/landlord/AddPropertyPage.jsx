@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, isDemoMode } from "../../lib/supabase";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 const AMENITIES = ["water", "electricity", "parking", "security", "wifi", "furnished", "garden", "gym"];
 const TYPES = ["apartment", "house", "bedsitter", "single_room", "studio"];

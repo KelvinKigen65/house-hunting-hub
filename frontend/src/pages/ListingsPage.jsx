@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import PropertyCard from "../components/ui/PropertyCard";
 
 const AREAS = ["All Areas", "Town Centre", "Kirimari", "Kithimu", "Ngandori", "Runyenjes", "Ishiara", "Siakago"];
@@ -27,32 +27,37 @@ export default function ListingsPage() {
   const [priceRange, setPriceRange] = useState(0);
   const [bedrooms, setBedrooms] = useState("Any");
   const [sortBy, setSortBy] = useState("newest");
-
+  // Inline fetch to avoid setState-in-effect lint rule
   useEffect(() => {
-    fetchProperties();
-    if (user) fetchSaved();
-  }, []);
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await supabase
+          .from("properties")
+          .select("*")
+          .eq("status", "verified")
+          .eq("is_available", true);
+        if (mounted && data) setProperties(data);
+      } catch (err) {
+        console.warn("Failed to fetch properties:", err.message);
+      }
+      setLoading(false);
 
-  async function fetchProperties() {
-    setLoading(true);
-    let query = supabase
-      .from("properties")
-      .select("*")
-      .eq("status", "verified")
-      .eq("is_available", true);
-
-    const { data } = await query;
-    if (data) setProperties(data);
-    setLoading(false);
-  }
-
-  async function fetchSaved() {
-    const { data } = await supabase
-      .from("saved_properties")
-      .select("property_id")
-      .eq("tenant_id", user.id);
-    if (data) setSavedIds(new Set(data.map((s) => s.property_id)));
-  }
+      if (user) {
+        try {
+          const { data } = await supabase
+            .from("saved_properties")
+            .select("property_id")
+            .eq("tenant_id", user.id);
+          if (mounted && data) setSavedIds(new Set(data.map((s) => s.property_id)));
+        } catch (err) {
+          console.warn("Failed to fetch saved ids:", err.message);
+        }
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user]);
 
   async function handleSaveToggle(propertyId, isSaved) {
     if (!user) { alert("Please sign in to save properties"); return; }

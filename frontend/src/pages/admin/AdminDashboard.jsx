@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function greeting() {
@@ -101,26 +101,35 @@ export default function TenantDashboard() {
   const [bookings, setBookings]     = useState([]);
   const [savedCount, setSavedCount] = useState(0);
   const [loading, setLoading]       = useState(true);
-
-  useEffect(() => { fetchData(); }, []);
-
-  async function fetchData() {
-    const [{ data: bData }, { count: sCount }] = await Promise.all([
-      supabase
-        .from("bookings")
-        .select("*, properties(title, location, price)")
-        .eq("tenant_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(5),
-      supabase
-        .from("saved_properties")
-        .select("*", { count: "exact", head: true })
-        .eq("tenant_id", user.id),
-    ]);
-    setBookings(bData || []);
-    setSavedCount(sCount || 0);
-    setLoading(false);
-  }
+  // Inline admin data fetch to avoid set-state-in-effect lint rule
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [{ data: bData }, { count: sCount }] = await Promise.all([
+          supabase
+            .from("bookings")
+            .select("*, properties(title, location, price)")
+            .eq("tenant_id", user?.id)
+            .order("created_at", { ascending: false })
+            .limit(5),
+          supabase
+            .from("saved_properties")
+            .select("*", { count: "exact", head: true })
+            .eq("tenant_id", user?.id),
+        ]);
+        if (mounted) {
+          setBookings(bData || []);
+          setSavedCount(sCount || 0);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch admin dashboard data:", err.message);
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [user]);
 
   const firstName      = profile?.full_name?.split(" ")[0] || "there";
   const pendingCount   = bookings.filter((b) => b.status === "pending").length;

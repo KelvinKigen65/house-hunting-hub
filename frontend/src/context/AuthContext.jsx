@@ -1,55 +1,70 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-
-const AuthContext = createContext(null);
+import { AuthContext } from "./AuthContextObject";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  async function fetchProfile(userId) {
+  async function fetchProfile(userId, userMetadata = {}) {
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .single();
-    if (!error && data) setProfile(data);
+    if (!error && data) {
+      setProfile(data);
+    } else if (userMetadata?.role) {
+      // Fallback: if profile fetch fails but we have role in user_metadata, use that
+      setProfile({
+        id: userId,
+        role: userMetadata.role,
+        full_name: userMetadata.full_name || "",
+      });
+    }
   }
 
   useEffect(() => {
-    // Get initial session
-    try {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+    let unsubscribed = false;
+    let unsubscribe = () => {};
+
+    async function bootstrapAuth() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (unsubscribed) return;
+
         setUser(session?.user ?? null);
-        if (session?.user) fetchProfile(session.user.id);
-        setLoading(false);
-      }).catch((err) => {
+        if (session?.user) await fetchProfile(session.user.id, session.user.user_metadata);
+      } catch (err) {
         console.warn("Supabase session error:", err.message);
-        setLoading(false);
-      });
-    } catch (err) {
-      console.warn("Supabase not configured:", err.message);
-      setLoading(false);
+      }
+
+      try {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (_event, session) => {
+            setUser(session?.user ?? null);
+            if (session?.user) {
+              await fetchProfile(session.user.id, session.user.user_metadata);
+            } else {
+              setProfile(null);
+            }
+          }
+        );
+        unsubscribe = () => subscription?.unsubscribe();
+      } catch (err) {
+        console.warn("Auth state change listener error:", err.message);
+      } finally {
+        if (!unsubscribed) setLoading(false);
+      }
     }
 
-    // Listen for auth changes
-    try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (_event, session) => {
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchProfile(session.user.id);
-          } else {
-            setProfile(null);
-          }
-        }
-      );
-      return () => subscription?.unsubscribe();
-    } catch (err) {
-      console.warn("Auth state change listener error:", err.message);
-      return () => {};
-    }
+    void bootstrapAuth();
+
+    return () => {
+      unsubscribed = true;
+      unsubscribe();
+    };
   }, []);
 
   async function signUp({ email, password, fullName, role }) {
@@ -81,7 +96,7 @@ export function AuthProvider({ children }) {
         Object.keys(localStorage)
           .filter((k) => typeof k === "string" && k.startsWith("sb-"))
           .forEach((k) => localStorage.removeItem(k));
-      } catch (e) {
+      } catch {
         // ignore localStorage errors (e.g., SSR or restricted storage)
       }
 
@@ -129,10 +144,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
-  return ctx;
 }

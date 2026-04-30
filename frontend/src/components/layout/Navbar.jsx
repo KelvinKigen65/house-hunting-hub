@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 export default function Navbar() {
   const { user, profile, isAdmin, isLandlord, isTenant, signOut } = useAuth();
@@ -22,7 +22,7 @@ export default function Navbar() {
       try {
         // small delay to allow navigation before reload
         setTimeout(() => window.location.reload(), 150);
-      } catch (e) {
+      } catch {
         // ignore reload errors
       }
     } catch (err) {

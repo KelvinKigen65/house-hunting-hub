@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
 
 export default function RegisterPage() {
   const { signUp } = useAuth();
-  const navigate = useNavigate();
   const [form, setForm] = useState({ fullName: "", email: "", password: "", confirm: "", role: "tenant", phone: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { supabase, getStorageUrl } from "../../lib/supabase";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&q=80";
 const STATUS_STYLES = {

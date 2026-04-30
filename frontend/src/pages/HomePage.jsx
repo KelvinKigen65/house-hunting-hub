@@ -12,38 +12,36 @@ export default function HomePage() {
   const [stats, setStats] = useState({ properties: 0, landlords: 0, tenants: 0 });
   const navigate = useNavigate();
 
+  // Fetch featured and stats on mount (inline to avoid setState-in-effect lint)
   useEffect(() => {
-    fetchFeatured();
-    fetchStats();
+    let mounted = true;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("properties")
+          .select("*")
+          .eq("status", "verified")
+          .eq("is_available", true)
+          .order("updated_at", { ascending: false })
+          .limit(6);
+        if (mounted && data) setFeatured(data);
+      } catch (err) {
+        console.warn("Failed to fetch featured properties:", err.message);
+      }
+
+      try {
+        const [{ count: properties }, { count: landlords }, { count: tenants }] = await Promise.all([
+          supabase.from("properties").select("*", { count: "exact", head: true }).eq("status", "verified"),
+          supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "landlord"),
+          supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "tenant"),
+        ]);
+        if (mounted) setStats({ properties: properties || 0, landlords: landlords || 0, tenants: tenants || 0 });
+      } catch (err) {
+        console.warn("Failed to fetch stats:", err.message);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
-
-  async function fetchFeatured() {
-    try {
-      const { data } = await supabase
-        .from("properties")
-        .select("*")
-        .eq("status", "verified")
-        .eq("is_available", true)
-        .order("updated_at", { ascending: false })
-        .limit(6);
-      if (data) setFeatured(data);
-    } catch (err) {
-      console.warn("Failed to fetch featured properties:", err.message);
-    }
-  }
-
-  async function fetchStats() {
-    try {
-      const [{ count: properties }, { count: landlords }, { count: tenants }] = await Promise.all([
-        supabase.from("properties").select("*", { count: "exact", head: true }).eq("status", "verified"),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "landlord"),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "tenant"),
-      ]);
-      setStats({ properties: properties || 0, landlords: landlords || 0, tenants: tenants || 0 });
-    } catch (err) {
-      console.warn("Failed to fetch stats:", err.message);
-    }
-  }
 
   function handleSearch(e) {
     e.preventDefault();

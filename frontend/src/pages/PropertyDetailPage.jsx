@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase, getStorageUrl } from "../lib/supabase";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&q=80";
 const AMENITY_ICONS = {
-  water: "💧", electricity: "⚡", parking: "🚗", security: "🔒",
+  water: "💧", electricity: "⚡", parking: "🚗", security: "🔒", 
   wifi: "📶", furnished: "🛋️", garden: "🌳", gym: "🏋️",
 };
 
 export default function PropertyDetailPage() {
   const { id } = useParams();
-  const { user, profile, isTenant } = useAuth();
+  const { user, isTenant } = useAuth();
   const navigate = useNavigate();
   const [property, setProperty] = useState(null);
   const [landlord, setLandlord] = useState(null);
@@ -32,27 +32,37 @@ export default function PropertyDetailPage() {
   const [inqLoading, setInqLoading] = useState(false);
   const [inqSuccess, setInqSuccess] = useState(false);
 
+
+
   useEffect(() => {
-    fetchProperty();
-    if (user) checkSaved();
-  }, [id]);
+    let mounted = true;
+    (async () => {
+      try {
+        const { data } = await supabase.from("properties").select("*").eq("id", id).single();
+        if (!data) { if (mounted) setLoading(false); return; }
+        if (mounted) setProperty(data);
+        // Increment views (don't await)
+        supabase.from("properties").update({ views_count: (data.views_count || 0) + 1 }).eq("id", id);
+        // Fetch landlord
+        const { data: lData } = await supabase.from("profiles").select("full_name, phone, avatar_url").eq("id", data.landlord_id).single();
+        if (mounted && lData) setLandlord(lData);
+        if (mounted) setLoading(false);
+      } catch (err) {
+        console.warn("Failed to fetch property:", err.message);
+        if (mounted) setLoading(false);
+      }
 
-  async function fetchProperty() {
-    const { data } = await supabase.from("properties").select("*").eq("id", id).single();
-    if (!data) { setLoading(false); return; }
-    setProperty(data);
-    // Increment views
-    supabase.from("properties").update({ views_count: (data.views_count || 0) + 1 }).eq("id", id);
-    // Fetch landlord
-    const { data: lData } = await supabase.from("profiles").select("full_name, phone, avatar_url").eq("id", data.landlord_id).single();
-    if (lData) setLandlord(lData);
-    setLoading(false);
-  }
-
-  async function checkSaved() {
-    const { data } = await supabase.from("saved_properties").select("id").match({ tenant_id: user.id, property_id: id }).single();
-    setSaved(!!data);
-  }
+      if (user) {
+        try {
+          const { data } = await supabase.from("saved_properties").select("id").match({ tenant_id: user.id, property_id: id }).single();
+          if (mounted) setSaved(!!data);
+        } catch (err) {
+          console.warn("Failed to check saved status:", err.message);
+        }
+      }
+    })();
+    return () => { mounted = false; };
+  }, [id, user]);
 
   async function toggleSave() {
     if (!user) { navigate("/login"); return; }
