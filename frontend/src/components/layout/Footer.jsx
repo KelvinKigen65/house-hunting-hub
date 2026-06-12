@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import houseLogo from "../../assets/house-logo.png";
 
 export default function Footer() {
   return (
@@ -8,11 +9,7 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-                </svg>
-              </div>
+              <img src={houseLogo} alt="" className="w-9 h-9 object-contain" aria-hidden="true" />
               <span className="font-display font-semibold text-white text-lg">House Hunting Hub</span>
             </div>
             <p className="text-sm text-gray-400 leading-relaxed">
