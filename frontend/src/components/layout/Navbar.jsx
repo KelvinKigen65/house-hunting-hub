@@ -35,19 +35,27 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="bg-white/65 backdrop-blur-md border-b border-gray-100/60 sticky top-0 z-50 shadow-sm">
+    <nav className="sticky top-0 z-50 border-b border-white/60 bg-white/70 shadow-[0_10px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+      <div className="h-1 bg-gradient-to-r from-sky-400 via-brand-500 to-fuchsia-400" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <img src={houseLogo} alt="" className="w-9 h-9 object-contain" aria-hidden="true" />
-            <span className="font-display font-semibold text-gray-900 text-lg hidden sm:block">
-              House Hunting <span className="text-brand-600">Hub</span>
+          <Link to="/" className="group flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/80 shadow-sm ring-1 ring-gray-900/5 transition-transform group-hover:-translate-y-0.5">
+              <img src={houseLogo} alt="" className="h-8 w-8 object-contain" aria-hidden="true" />
+            </span>
+            <span className="hidden sm:block leading-tight">
+              <span className="block font-display text-lg font-bold text-gray-950">
+                House Hunting <span className="text-brand-600">Hub</span>
+              </span>
+              <span className="block text-[11px] font-medium uppercase tracking-[0.18em] text-gray-500">
+                Verified Embu rentals
+              </span>
             </span>
           </Link>
 
           {/* Desktop nav links */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-1 rounded-2xl border border-gray-200/70 bg-white/55 p-1 shadow-sm">
             <NavLink to="/" active={isActive("/")}>Home</NavLink>
             <NavLink to="/listings" active={location.pathname.startsWith("/listings")}>Browse</NavLink>
             {isTenant && <NavLink to="/tenant" active={isActive("/tenant")}>Dashboard</NavLink>}
@@ -117,8 +125,8 @@ export default function Navbar() {
               </div>
             ) : (
               <>
-                <Link to="/login" className="btn-secondary text-sm py-2 px-4">Sign in</Link>
-                <Link to="/register" className="btn-primary text-sm py-2 px-4">Get started</Link>
+                <Link to="/login" className="rounded-xl border border-gray-200 bg-white/70 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-white">Sign in</Link>
+                <Link to="/register" className="rounded-xl bg-gradient-to-r from-brand-600 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 transition-transform hover:-translate-y-0.5">Get started</Link>
               </>
             )}
           </div>
@@ -139,7 +147,7 @@ export default function Navbar() {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-100 space-y-1">
+          <div className="md:hidden py-4 border-t border-gray-100/70 space-y-1 rounded-b-3xl bg-white/85 backdrop-blur-xl">
             <MobileLink to="/" onClick={() => setMenuOpen(false)}>Home</MobileLink>
             <MobileLink to="/listings" onClick={() => setMenuOpen(false)}>Browse Houses</MobileLink>
             {user ? (
@@ -178,10 +186,10 @@ function NavLink({ to, active, children }) {
   return (
     <Link
       to={to}
-      className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+      className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition-all ${
         active
-          ? "bg-brand-50 text-brand-700"
-          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+          ? "bg-white text-brand-700 shadow-sm ring-1 ring-brand-100"
+          : "text-gray-600 hover:text-gray-950 hover:bg-white/70"
       }`}
     >
       {children}
