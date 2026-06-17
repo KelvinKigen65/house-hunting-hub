@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { djangoApi } from "../lib/djangoApi";
 import { AuthContext } from "./AuthContextObject";
 
 export function AuthProvider({ children }) {
@@ -8,15 +8,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   async function fetchProfile(userId, userMetadata = {}) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (!error && data) {
-      setProfile(data);
-    } else if (userMetadata?.role) {
-      // Fallback: if profile fetch fails but we have role in user_metadata, use that
+    try {
+      const profileData = await djangoApi.profiles.get(userId);
+      setProfile(profileData);
+    } catch {
       setProfile({
         id: userId,
         role: userMetadata.role,
@@ -31,17 +26,17 @@ export function AuthProvider({ children }) {
 
     async function bootstrapAuth() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const session = await djangoApi.auth.getSession();
         if (unsubscribed) return;
 
         setUser(session?.user ?? null);
         if (session?.user) await fetchProfile(session.user.id, session.user.user_metadata);
       } catch (err) {
-        console.warn("Supabase session error:", err.message);
+        console.warn("Django session error:", err.message);
       }
 
       try {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        const subscription = djangoApi.auth.onAuthStateChange(
           async (_event, session) => {
             setUser(session?.user ?? null);
             if (session?.user) {
@@ -68,22 +63,21 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signUp({ email, password, fullName, role }) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName, role },
-      },
-    });
-    return { data, error };
+    try {
+      const user = await djangoApi.auth.register({ email, password, fullName, role });
+      return { data: { user }, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   }
 
   async function signIn({ email, password }) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { data, error };
+    try {
+      const user = await djangoApi.auth.login({ email, password });
+      return { data: { user }, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
   }
 
   async function signOut() {
@@ -91,7 +85,7 @@ export function AuthProvider({ children }) {
     try {
       setUser(null);
       setProfile(null);
-      // Clear Supabase-related localStorage entries (keys start with 'sb-')
+      // Clear stale Supabase localStorage from earlier builds.
       try {
         Object.keys(localStorage)
           .filter((k) => typeof k === "string" && k.startsWith("sb-"))
@@ -102,11 +96,7 @@ export function AuthProvider({ children }) {
 
       // Attempt server-side sign-out; don't block UI on failure
       try {
-        const res = await supabase.auth.signOut();
-        if (res?.error) {
-          console.warn("Sign out failed on server:", res.error.message || res.error);
-          return { error: res.error };
-        }
+        await djangoApi.auth.logout();
         return { error: null };
       } catch (err) {
         console.warn("Sign out exception (server):", err.message || err);

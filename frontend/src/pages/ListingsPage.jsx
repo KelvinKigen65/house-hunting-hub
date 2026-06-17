@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { djangoApi } from "../lib/djangoApi";
 import { useAuth } from "../context/useAuth";
 import PropertyCard from "../components/ui/PropertyCard";
 
@@ -33,12 +33,8 @@ export default function ListingsPage() {
     (async () => {
       setLoading(true);
       try {
-        const { data } = await supabase
-          .from("properties")
-          .select("*")
-          .eq("status", "verified")
-          .eq("is_available", true);
-        if (mounted && data) setProperties(data);
+        const data = await djangoApi.properties.list({ publicOnly: true });
+        if (mounted) setProperties(data);
       } catch (err) {
         console.warn("Failed to fetch properties:", err.message);
       }
@@ -46,11 +42,8 @@ export default function ListingsPage() {
 
       if (user) {
         try {
-          const { data } = await supabase
-            .from("saved_properties")
-            .select("property_id")
-            .eq("tenant_id", user.id);
-          if (mounted && data) setSavedIds(new Set(data.map((s) => s.property_id)));
+          const data = await djangoApi.savedProperties.list();
+          if (mounted) setSavedIds(new Set(data.map((s) => s.property_id)));
         } catch (err) {
           console.warn("Failed to fetch saved ids:", err.message);
         }
@@ -62,10 +55,10 @@ export default function ListingsPage() {
   async function handleSaveToggle(propertyId, isSaved) {
     if (!user) { alert("Please sign in to save properties"); return; }
     if (isSaved) {
-      await supabase.from("saved_properties").delete().match({ tenant_id: user.id, property_id: propertyId });
+      await djangoApi.savedProperties.remove(propertyId);
       setSavedIds((prev) => { const n = new Set(prev); n.delete(propertyId); return n; });
     } else {
-      await supabase.from("saved_properties").insert({ tenant_id: user.id, property_id: propertyId });
+      await djangoApi.savedProperties.create(propertyId);
       setSavedIds((prev) => new Set([...prev, propertyId]));
     }
   }
@@ -167,7 +160,6 @@ export default function ListingsPage() {
         </div>
       ) : (
         <div className="text-center py-24 text-gray-400">
-          <div className="text-6xl mb-4">🏘️</div>
           <p className="font-display text-xl text-gray-600 mb-2">No properties found</p>
           <p className="text-sm">Try adjusting your filters or search term</p>
         </div>

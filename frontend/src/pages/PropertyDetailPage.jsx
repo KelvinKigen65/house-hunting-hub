@@ -1,13 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { supabase, getStorageUrl } from "../lib/supabase";
+import { djangoApi, getStorageUrl } from "../lib/djangoApi";
 import { useAuth } from "../context/useAuth";
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&q=80";
-const AMENITY_ICONS = {
-  water: "💧", electricity: "⚡", parking: "🚗", security: "🔒", 
-  wifi: "📶", furnished: "🛋️", garden: "🌳", gym: "🏋️",
-};
 
 export default function PropertyDetailPage() {
   const { id } = useParams();
@@ -38,14 +34,13 @@ export default function PropertyDetailPage() {
     let mounted = true;
     (async () => {
       try {
-        const { data } = await supabase.from("properties").select("*").eq("id", id).single();
-        if (!data) { if (mounted) setLoading(false); return; }
+        const data = await djangoApi.properties.get(id);
         if (mounted) setProperty(data);
         // Increment views (don't await)
-        supabase.from("properties").update({ views_count: (data.views_count || 0) + 1 }).eq("id", id);
+        djangoApi.properties.incrementViews(id).catch(() => {});
         // Fetch landlord
-        const { data: lData } = await supabase.from("profiles").select("full_name, phone, avatar_url").eq("id", data.landlord_id).single();
-        if (mounted && lData) setLandlord(lData);
+        const lData = await djangoApi.profiles.get(data.landlord_id);
+        if (mounted) setLandlord(lData);
         if (mounted) setLoading(false);
       } catch (err) {
         console.warn("Failed to fetch property:", err.message);
@@ -54,8 +49,8 @@ export default function PropertyDetailPage() {
 
       if (user) {
         try {
-          const { data } = await supabase.from("saved_properties").select("id").match({ tenant_id: user.id, property_id: id }).single();
-          if (mounted) setSaved(!!data);
+          const isSaved = await djangoApi.savedProperties.has(id);
+          if (mounted) setSaved(isSaved);
         } catch (err) {
           console.warn("Failed to check saved status:", err.message);
         }
@@ -67,10 +62,10 @@ export default function PropertyDetailPage() {
   async function toggleSave() {
     if (!user) { navigate("/login"); return; }
     if (saved) {
-      await supabase.from("saved_properties").delete().match({ tenant_id: user.id, property_id: id });
+      await djangoApi.savedProperties.remove(id);
       setSaved(false);
     } else {
-      await supabase.from("saved_properties").insert({ tenant_id: user.id, property_id: id });
+      await djangoApi.savedProperties.create(id);
       setSaved(true);
     }
   }
@@ -79,32 +74,36 @@ export default function PropertyDetailPage() {
     e.preventDefault();
     if (!user) { navigate("/login"); return; }
     setBookLoading(true);
-    const { error } = await supabase.from("bookings").insert({
-      property_id: id,
-      tenant_id: user.id,
-      landlord_id: property.landlord_id,
-      viewing_date: bookDate,
-      viewing_time: bookTime,
-      message: bookMsg,
-    });
-    setBookLoading(false);
-    if (!error) { setBookSuccess(true); setBookDate(""); setBookMsg(""); }
-    else alert("Failed to book viewing. Please try again.");
+    try {
+      await djangoApi.bookings.create({
+        property_id: id,
+        viewing_date: bookDate,
+        viewing_time: bookTime,
+        message: bookMsg,
+      });
+      setBookSuccess(true);
+      setBookDate("");
+      setBookMsg("");
+    } catch {
+      alert("Failed to book viewing. Please try again.");
+    } finally {
+      setBookLoading(false);
+    }
   }
 
   async function submitInquiry(e) {
     e.preventDefault();
     if (!user) { navigate("/login"); return; }
     setInqLoading(true);
-    const { error } = await supabase.from("inquiries").insert({
-      property_id: id,
-      tenant_id: user.id,
-      landlord_id: property.landlord_id,
-      message: inqMsg,
-    });
-    setInqLoading(false);
-    if (!error) { setInqSuccess(true); setInqMsg(""); }
-    else alert("Failed to send inquiry. Please try again.");
+    try {
+      await djangoApi.inquiries.create({ property_id: id, message: inqMsg });
+      setInqSuccess(true);
+      setInqMsg("");
+    } catch {
+      alert("Failed to send inquiry. Please try again.");
+    } finally {
+      setInqLoading(false);
+    }
   }
 
   const price = (v) => new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(v);
@@ -159,7 +158,7 @@ export default function PropertyDetailPage() {
               )}
               {/* Status badge */}
               <div className="absolute top-3 left-3 flex gap-2">
-                {property.status === "verified" && <span className="badge-verified">✓ Verified</span>}
+                {property.status === "verified" && <span className="badge-verified">Verified</span>}
               </div>
             </div>
             {/* Thumbnails */}
@@ -216,7 +215,7 @@ export default function PropertyDetailPage() {
                 <div className="flex flex-wrap gap-2 mb-5">
                   {property.amenities.map((a) => (
                     <span key={a} className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 text-sm px-3 py-1 rounded-full">
-                      <span>{AMENITY_ICONS[a] || "✓"}</span>
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-600" />
                       <span className="capitalize">{a}</span>
                     </span>
                   ))}
@@ -268,7 +267,6 @@ export default function PropertyDetailPage() {
                 <>
                   {bookSuccess ? (
                     <div className="text-center py-4">
-                      <div className="text-3xl mb-2">✅</div>
                       <p className="font-semibold text-gray-900 text-sm">Viewing request sent!</p>
                       <p className="text-xs text-gray-500 mt-1">The landlord will confirm your booking soon.</p>
                       <button onClick={() => setBookSuccess(false)} className="text-xs text-brand-600 mt-3 underline">Book another</button>
@@ -304,7 +302,6 @@ export default function PropertyDetailPage() {
                 <>
                   {inqSuccess ? (
                     <div className="text-center py-4">
-                      <div className="text-3xl mb-2">📨</div>
                       <p className="font-semibold text-gray-900 text-sm">Inquiry sent!</p>
                       <p className="text-xs text-gray-500 mt-1">The landlord will reply soon.</p>
                       <button onClick={() => setInqSuccess(false)} className="text-xs text-brand-600 mt-3 underline">Send another</button>

@@ -26,7 +26,6 @@ export default function RegisterPage() {
   if (success) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md card p-8 text-center">
-        <div className="text-5xl mb-4">📧</div>
         <h2 className="font-display text-2xl font-bold text-gray-900 mb-2">Check your email!</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6">
           We've sent a confirmation link to <strong>{form.email}</strong>. Click the link to activate your account.
@@ -55,9 +54,9 @@ export default function RegisterPage() {
           {/* Role selector */}
           <div className="grid grid-cols-2 gap-3 mb-5">
             {[
-              { value: "tenant", label: "I'm a Tenant", icon: "🔍", desc: "Looking for a house" },
-              { value: "landlord", label: "I'm a Landlord", icon: "🏠", desc: "Listing my property" },
-            ].map(({ value, label, icon, desc }) => (
+              { value: "tenant", label: "I'm a Tenant", desc: "Looking for a house" },
+              { value: "landlord", label: "I'm a Landlord", desc: "Listing my property" },
+            ].map(({ value, label, desc }) => (
               <button
                 key={value}
                 type="button"
@@ -68,7 +67,6 @@ export default function RegisterPage() {
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
-                <div className="text-2xl mb-1">{icon}</div>
                 <p className="font-medium text-gray-900 text-sm">{label}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
               </button>

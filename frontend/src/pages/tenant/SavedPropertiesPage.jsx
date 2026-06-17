@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { djangoApi } from "../../lib/djangoApi";
 import { useAuth } from "../../context/useAuth";
 import PropertyCard from "../../components/ui/PropertyCard";
 
@@ -9,12 +9,16 @@ export default function SavedPropertiesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from("saved_properties").select("property_id, properties(*)").eq("tenant_id", user.id)
-      .then(({ data }) => { setSaved(data?.map(s => s.properties) || []); setLoading(false); });
-  }, []);
+    djangoApi.savedProperties.list()
+      .then((data) => {
+        setSaved(data.map(s => s.properties).filter(Boolean));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [user]);
 
   async function unsave(propertyId) {
-    await supabase.from("saved_properties").delete().match({ tenant_id: user.id, property_id: propertyId });
+    await djangoApi.savedProperties.remove(propertyId);
     setSaved(s => s.filter(p => p.id !== propertyId));
   }
 
@@ -22,8 +26,7 @@ export default function SavedPropertiesPage() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="font-display text-3xl font-bold text-gray-900 mb-8">Saved Properties</h1>
       {loading ? <div className="skeleton h-48 rounded-2xl" /> : saved.length === 0 ? (
-        <div className="card p-16 text-center text-gray-400">
-          <div className="text-5xl mb-4">❤️</div>
+        <div className="card p-12 text-center text-gray-400">
           <p>No saved properties yet. Browse listings and tap the heart!</p>
         </div>
       ) : (

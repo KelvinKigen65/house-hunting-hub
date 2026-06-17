@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
+import { djangoApi } from "../../lib/djangoApi";
 import { useAuth } from "../../context/useAuth";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -18,6 +18,25 @@ const STATUS = {
   completed: { label: "Completed", dot: "bg-gray-400",   pill: "bg-gray-100  text-gray-600   ring-gray-200"     },
 };
 
+const ICONS = {
+  saved: "M5 5.5A3.5 3.5 0 0 1 11 3a3.5 3.5 0 0 1 6 2.5c0 4.6-6 8.5-6 8.5S5 10.1 5 5.5Z",
+  bookings: "M7 3v3m10-3v3M4.5 9h15M6 5.5h12A1.5 1.5 0 0 1 19.5 7v10A1.5 1.5 0 0 1 18 18.5H6A1.5 1.5 0 0 1 4.5 17V7A1.5 1.5 0 0 1 6 5.5Z",
+  pending: "M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+  confirmed: "m5 12 4 4L19 6",
+  search: "m21 21-4.35-4.35m1.1-5.15a6.25 6.25 0 1 1-12.5 0 6.25 6.25 0 0 1 12.5 0Z",
+  user: "M15.75 8.25a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20a7.5 7.5 0 0 1 15 0",
+  shield: "M12 3.5 19 6v5.5c0 4.1-2.8 7.8-7 9-4.2-1.2-7-4.9-7-9V6l7-2.5Z",
+  phone: "M6.5 4.5h3l1.5 4-2 1.2a12.5 12.5 0 0 0 5.3 5.3l1.2-2 4 1.5v3a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 4.5 6.7a2 2 0 0 1 2-2.2Z",
+};
+
+function DashboardIcon({ name, className = "h-5 w-5" }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={ICONS[name]} />
+    </svg>
+  );
+}
+
 // ─── sub-components ─────────────────────────────────────────────────────────
 function StatCard({ to, icon, value, label, sub, accent }) {
   return (
@@ -32,8 +51,8 @@ function StatCard({ to, icon, value, label, sub, accent }) {
           <p className="text-sm font-medium text-gray-700">{label}</p>
           {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
         </div>
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl bg-gray-50 group-hover:bg-gray-100 transition-colors flex-shrink-0">
-          {icon}
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-gray-50 text-gray-500 group-hover:bg-gray-100 transition-colors flex-shrink-0">
+          <DashboardIcon name={icon} />
         </div>
       </div>
     </Link>
@@ -80,8 +99,8 @@ function QuickAction({ to, icon, label, desc, color }) {
       to={to}
       className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
     >
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${color}`}>
-        {icon}
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>
+        <DashboardIcon name={icon} className="h-4 w-4 text-gray-700" />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-gray-800 group-hover:text-gray-900">{label}</p>
@@ -107,21 +126,13 @@ export default function TenantDashboard() {
     let mounted = true;
     (async () => {
       try {
-        const [{ data: bData }, { count: sCount }] = await Promise.all([
-          supabase
-            .from("bookings")
-            .select("*, properties(title, location, price)")
-            .eq("tenant_id", user?.id)
-            .order("created_at", { ascending: false })
-            .limit(5),
-          supabase
-            .from("saved_properties")
-            .select("*", { count: "exact", head: true })
-            .eq("tenant_id", user?.id),
+        const [bData, savedData] = await Promise.all([
+          djangoApi.bookings.list(),
+          djangoApi.savedProperties.list(),
         ]);
         if (mounted) {
-          setBookings(bData || []);
-          setSavedCount(sCount || 0);
+          setBookings([...bData].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5));
+          setSavedCount(savedData.length);
           setLoading(false);
         }
       } catch (err) {
@@ -149,7 +160,7 @@ export default function TenantDashboard() {
               {greeting()}
             </p>
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-white leading-tight">
-              {firstName} 👋
+              {firstName}
             </h1>
             <p className="text-gray-400 text-sm mt-2 max-w-sm leading-relaxed">
               Your personal hub for finding and managing rental properties in Embu County.
@@ -170,10 +181,10 @@ export default function TenantDashboard() {
 
       {/* ── Stats ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard to="/tenant/saved"    icon="❤️" value={loading ? "—" : savedCount}    label="Saved"     sub="Properties"          accent="bg-red-400"     />
-        <StatCard to="/tenant/bookings" icon="📅" value={loading ? "—" : bookings.length} label="Bookings" sub="Total viewings"      accent="bg-brand-500"   />
-        <StatCard to="/tenant/bookings" icon="⏳" value={loading ? "—" : pendingCount}   label="Pending"   sub="Awaiting confirm"   accent="bg-yellow-400"  />
-        <StatCard to="/tenant/bookings" icon="✅" value={loading ? "—" : confirmedCount} label="Confirmed" sub="Ready to attend"    accent="bg-emerald-500" />
+        <StatCard to="/tenant/saved"    icon="saved" value={loading ? "—" : savedCount}    label="Saved"     sub="Properties"          accent="bg-red-400"     />
+        <StatCard to="/tenant/bookings" icon="bookings" value={loading ? "—" : bookings.length} label="Bookings" sub="Total viewings"      accent="bg-brand-500"   />
+        <StatCard to="/tenant/bookings" icon="pending" value={loading ? "—" : pendingCount}   label="Pending"   sub="Awaiting confirm"   accent="bg-yellow-400"  />
+        <StatCard to="/tenant/bookings" icon="confirmed" value={loading ? "—" : confirmedCount} label="Confirmed" sub="Ready to attend"    accent="bg-emerald-500" />
       </div>
 
       {/* ── Two-column main area ─────────────────────────────────────── */}
@@ -197,7 +208,9 @@ export default function TenantDashboard() {
             </div>
           ) : bookings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-3xl mb-4">📅</div>
+              <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-500 mb-4">
+                <DashboardIcon name="bookings" className="h-6 w-6" />
+              </div>
               <p className="font-medium text-gray-700 text-sm mb-1">No bookings yet</p>
               <p className="text-xs text-gray-400 mb-4 max-w-[180px]">
                 Find a property you like and book a viewing.
@@ -221,22 +234,22 @@ export default function TenantDashboard() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-card p-5">
             <h2 className="font-display font-semibold text-gray-900 text-base mb-3">Quick Actions</h2>
             <div className="space-y-1">
-              <QuickAction to="/listings"        icon="🔍" label="Browse Houses"     desc="Find verified rentals in Embu"       color="bg-blue-50"    />
-              <QuickAction to="/tenant/saved"    icon="❤️" label="Saved Properties"  desc={`${savedCount} saved`}               color="bg-red-50"     />
-              <QuickAction to="/tenant/bookings" icon="📅" label="My Bookings"       desc={`${bookings.length} viewing request${bookings.length !== 1 ? "s" : ""}`} color="bg-brand-50" />
-              <QuickAction to="/profile"         icon="👤" label="My Profile"        desc="Update your contact info"            color="bg-gray-100"   />
+              <QuickAction to="/listings"        icon="search" label="Browse Houses"     desc="Find verified rentals in Embu"       color="bg-blue-50"    />
+              <QuickAction to="/tenant/saved"    icon="saved" label="Saved Properties"  desc={`${savedCount} saved`}               color="bg-red-50"     />
+              <QuickAction to="/tenant/bookings" icon="bookings" label="My Bookings"       desc={`${bookings.length} viewing request${bookings.length !== 1 ? "s" : ""}`} color="bg-brand-50" />
+              <QuickAction to="/profile"         icon="user" label="My Profile"        desc="Update your contact info"            color="bg-gray-100"   />
             </div>
           </div>
 
           {/* Safety Tips */}
           <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-2xl p-5 text-white">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🛡️</span>
+              <DashboardIcon name="shield" className="h-5 w-5 text-brand-100" />
               <h3 className="font-display font-semibold text-sm">Safe Renting Tips</h3>
             </div>
             <ul className="space-y-2.5">
               {[
-                "Only view properties with the ✓ Verified badge.",
+                "Only view properties marked as verified.",
                 "Visit in person before making any payment.",
                 "Never pay a deposit without a signed lease.",
                 "Use this platform to message landlords.",
@@ -258,7 +271,9 @@ export default function TenantDashboard() {
       {!profile?.phone && (
         <div className="bg-yellow-50 border border-yellow-100 rounded-2xl px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="flex items-center gap-3 flex-1">
-            <span className="text-2xl">📞</span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-100 text-yellow-700">
+              <DashboardIcon name="phone" />
+            </span>
             <div>
               <p className="text-sm font-semibold text-yellow-800">Add your phone number</p>
               <p className="text-xs text-yellow-600 mt-0.5">

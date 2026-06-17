@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { djangoApi } from "../../lib/djangoApi";
 import { useAuth } from "../../context/useAuth";
 
 export default function LandlordInquiriesPage() {
@@ -8,14 +8,13 @@ export default function LandlordInquiriesPage() {
   const [replies, setReplies] = useState({});
 
   useEffect(() => {
-    supabase.from("inquiries").select("*, properties(title), profiles!tenant_id(full_name, phone)")
-      .eq("landlord_id", user.id).order("created_at", { ascending: false })
-      .then(({ data }) => setInquiries(data || []));
-  }, []);
+    djangoApi.inquiries.list({ scope: "landlord" })
+      .then((data) => setInquiries([...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))));
+  }, [user]);
 
   async function sendReply(id) {
     if (!replies[id]) return;
-    await supabase.from("inquiries").update({ reply: replies[id], replied_at: new Date().toISOString(), is_read: true }).eq("id", id);
+    await djangoApi.inquiries.reply(id, replies[id]);
     setInquiries(i => i.map(x => x.id === id ? { ...x, reply: replies[id] } : x));
   }
 
@@ -23,7 +22,7 @@ export default function LandlordInquiriesPage() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="font-display text-3xl font-bold text-gray-900 mb-8">Tenant Inquiries</h1>
       {inquiries.length === 0 ? (
-        <div className="card p-16 text-center text-gray-400"><div className="text-5xl mb-4">📨</div><p>No inquiries yet.</p></div>
+        <div className="card p-16 text-center text-gray-400"><p>No inquiries yet.</p></div>
       ) : (
         <div className="space-y-4">
           {inquiries.map(inq => (

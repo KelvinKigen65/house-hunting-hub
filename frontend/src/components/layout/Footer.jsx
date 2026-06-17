@@ -45,7 +45,7 @@ export default function Footer() {
 
         <div className="border-t border-gray-800 mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs text-gray-500">© {new Date().getFullYear()} House Hunting Hub. All rights reserved.</p>
-          <p className="text-xs text-gray-500">Built with ❤️ for Embu, Kenya</p>
+          <p className="text-xs text-gray-500">Serving Embu, Kenya</p>
         </div>
       </div>
     </footer>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase, isDemoMode } from "../../lib/supabase";
+import { djangoApi } from "../../lib/djangoApi";
 import { useAuth } from "../../context/useAuth";
 
 const AMENITIES = ["water", "electricity", "parking", "security", "wifi", "furnished", "garden", "gym"];
@@ -33,12 +33,6 @@ export default function AddPropertyPage() {
     setError("");
     setUploading(true);
 
-    if (isDemoMode) {
-      setError("Supabase is not configured. Configure your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env to enable adding properties.");
-      setUploading(false);
-      return;
-    }
-
     if (!user) {
       setError("You must be signed in to add a property.");
       setUploading(false);
@@ -50,14 +44,9 @@ export default function AddPropertyPage() {
     const imagePaths = [];
     const uploadErrors = [];
     for (const file of files) {
-      const path = `${user.id}/${Date.now()}-${file.name.replace(/\s/g, "_")}`;
       try {
-        const { error: uploadErr } = await supabase.storage.from("house-images").upload(path, file);
-        if (uploadErr) {
-          uploadErrors.push(uploadErr.message || String(uploadErr));
-        } else {
-          imagePaths.push(path);
-        }
+        const data = await djangoApi.media.upload(file);
+        imagePaths.push(data.path);
       } catch (err) {
         uploadErrors.push(err.message || String(err));
       }
@@ -69,33 +58,33 @@ export default function AddPropertyPage() {
       return;
     }
 
-    // Insert property
-    const { error: insertErr } = await supabase.from("properties").insert({
-      landlord_id: user.id,
-      title: form.title,
-      description: form.description,
-      location: form.location,
-      area: form.area,
-      price: parseFloat(form.price),
-      bedrooms: parseInt(form.bedrooms),
-      bathrooms: parseInt(form.bathrooms),
-      property_type: form.property_type,
-      amenities: form.amenities,
-      images: imagePaths,
-      status: "verified",
-      is_available: true,
-    });
-
-    setUploading(false);
-    if (insertErr) { setError(insertErr.message || "Failed to submit property"); return; }
-    navigate("/landlord");
+    try {
+      await djangoApi.properties.create({
+        title: form.title,
+        description: form.description,
+        location: form.location,
+        area: form.area,
+        price: parseFloat(form.price),
+        bedrooms: parseInt(form.bedrooms),
+        bathrooms: parseInt(form.bathrooms),
+        property_type: form.property_type,
+        amenities: form.amenities,
+        images: imagePaths,
+        is_available: true,
+      });
+      navigate("/landlord");
+    } catch (err) {
+      setError(err.message || "Failed to submit property");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="font-display text-3xl font-bold text-gray-900">Add New Property</h1>
-        <p className="text-gray-500 mt-1">Your listing will go live immediately after submission.</p>
+        <p className="text-gray-500 mt-1">Your listing will be submitted for admin review.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { supabase, getStorageUrl } from "../../lib/supabase";
+import { djangoApi, getStorageUrl } from "../../lib/djangoApi";
 import { useAuth } from "../../context/useAuth";
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&q=80";
@@ -17,30 +17,30 @@ export default function LandlordDashboard() {
   useEffect(() => { fetchData(); }, []);
 
   async function fetchData() {
-    const [{ data: props }, { count: bookings }] = await Promise.all([
-      supabase.from("properties").select("*").eq("landlord_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("bookings").select("*", { count: "exact", head: true }).eq("landlord_id", user.id).eq("status", "pending"),
+    const [props, statsData] = await Promise.all([
+      djangoApi.properties.list({ landlord_id: user.id }),
+      djangoApi.stats.landlordDashboard(),
     ]);
     if (props) {
-      setProperties(props);
+      setProperties([...props].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
       setStats({
-        total: props.length,
-        verified: props.filter(p => p.status === "verified").length,
-        pending: props.filter(p => p.status === "pending").length,
-        bookings: bookings || 0,
+        total: statsData.total,
+        verified: statsData.verified,
+        pending: statsData.pending,
+        bookings: statsData.bookings?.pending || 0,
       });
     }
     setLoading(false);
   }
 
   async function toggleAvailability(id, current) {
-    await supabase.from("properties").update({ is_available: !current }).eq("id", id);
+    await djangoApi.properties.update(id, { is_available: !current });
     fetchData();
   }
 
   async function deleteProperty(id) {
     if (!confirm("Delete this property? This cannot be undone.")) return;
-    await supabase.from("properties").delete().eq("id", id);
+    await djangoApi.properties.remove(id);
     fetchData();
   }
 
@@ -80,7 +80,6 @@ export default function LandlordDashboard() {
         </div>
       ) : properties.length === 0 ? (
         <div className="card p-16 text-center">
-          <div className="text-5xl mb-4">🏘️</div>
           <p className="font-display text-xl text-gray-600 mb-2">No properties yet</p>
           <p className="text-gray-500 text-sm mb-6">Add your first listing to start connecting with tenants.</p>
           <Link to="/landlord/add" className="btn-primary inline-block">Add Your First Property</Link>

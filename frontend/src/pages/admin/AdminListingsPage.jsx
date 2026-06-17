@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase, getStorageUrl } from "../../lib/supabase";
+import { djangoApi, getStorageUrl } from "../../lib/djangoApi";
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=300&q=80";
 
@@ -13,15 +13,13 @@ export default function AdminListingsPage() {
 
   async function fetchProperties() {
     setLoading(true);
-    const q = supabase.from("properties").select("*, profiles!landlord_id(full_name, phone)").order("created_at", { ascending: false });
-    if (filter !== "all") q.eq("status", filter);
-    const { data } = await q;
-    if (data) setProperties(data);
+    const data = await djangoApi.properties.list({ status: filter });
+    setProperties([...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
     setLoading(false);
   }
 
   async function updateStatus(id, status) {
-    await supabase.from("properties").update({ status, admin_note: note[id] || null }).eq("id", id);
+    await djangoApi.properties.update(id, { status, admin_note: note[id] || null });
     fetchProperties();
   }
 
@@ -50,7 +48,6 @@ export default function AdminListingsPage() {
         <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="card p-4 h-32 skeleton" />)}</div>
       ) : properties.length === 0 ? (
         <div className="card p-16 text-center text-gray-400">
-          <p className="text-5xl mb-4">✅</p>
           <p>No {filter} listings</p>
         </div>
       ) : (
@@ -83,7 +80,7 @@ export default function AdminListingsPage() {
                   <div className="flex flex-col sm:flex-row gap-2">
                     {p.status !== "verified" && (
                       <button onClick={() => updateStatus(p.id, "verified")}
-                        className="flex-1 btn-primary text-xs py-2">✓ Verify</button>
+                        className="flex-1 btn-primary text-xs py-2">Verify</button>
                     )}
                     {p.status !== "rejected" && (
                       <div className="flex gap-2 flex-1">
@@ -94,7 +91,7 @@ export default function AdminListingsPage() {
                           className="input-field text-xs py-2 flex-1"
                         />
                         <button onClick={() => updateStatus(p.id, "rejected")}
-                          className="btn-danger text-xs py-2 px-3 whitespace-nowrap">✗ Reject</button>
+                          className="btn-danger text-xs py-2 px-3 whitespace-nowrap">Reject</button>
                       </div>
                     )}
                     {p.status !== "pending" && (

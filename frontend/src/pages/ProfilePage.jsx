@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "../lib/supabase";
+import { djangoApi } from "../lib/djangoApi";
 import { useAuth } from "../context/useAuth";
 
 export default function ProfilePage() {
@@ -11,7 +11,7 @@ export default function ProfilePage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
-    await supabase.from("profiles").update(form).eq("id", profile.id);
+    await djangoApi.profiles.update(form);
     await refreshProfile();
     setSaving(false);
     setSavedOk(true);

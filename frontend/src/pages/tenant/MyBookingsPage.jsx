@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { djangoApi } from "../../lib/djangoApi";
 import { useAuth } from "../../context/useAuth";
 
 export default function MyBookingsPage() {
@@ -8,12 +8,16 @@ export default function MyBookingsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from("bookings").select("*, properties(title, location, price)").eq("tenant_id", user.id).order("created_at", { ascending: false })
-      .then(({ data }) => { setBookings(data || []); setLoading(false); });
-  }, []);
+    djangoApi.bookings.list()
+      .then((data) => {
+        setBookings([...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [user]);
 
   async function cancelBooking(id) {
-    await supabase.from("bookings").update({ status: "cancelled" }).eq("id", id);
+    await djangoApi.bookings.updateStatus(id, "cancelled");
     setBookings(b => b.map(x => x.id === id ? { ...x, status: "cancelled" } : x));
   }
 
@@ -22,7 +26,6 @@ export default function MyBookingsPage() {
       <h1 className="font-display text-3xl font-bold text-gray-900 mb-8">My Bookings</h1>
       {loading ? <div className="skeleton h-48 rounded-2xl" /> : bookings.length === 0 ? (
         <div className="card p-16 text-center text-gray-400">
-          <div className="text-5xl mb-4">📅</div>
           <p>No bookings yet. Browse listings to book a viewing!</p>
         </div>
       ) : (
@@ -33,7 +36,7 @@ export default function MyBookingsPage() {
                 <div>
                   <h3 className="font-semibold text-gray-900">{b.properties?.title}</h3>
                   <p className="text-sm text-gray-500 mt-0.5">{b.properties?.location}</p>
-                  <p className="text-sm text-gray-600 mt-2">📅 {b.viewing_date} at {b.viewing_time}</p>
+                  <p className="text-sm text-gray-600 mt-2">{b.viewing_date} at {b.viewing_time}</p>
                   {b.message && <p className="text-xs text-gray-400 mt-1">"{b.message}"</p>}
                 </div>
                 <div className="flex flex-col items-end gap-2">

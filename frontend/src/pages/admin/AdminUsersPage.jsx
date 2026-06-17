@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { djangoApi } from "../../lib/djangoApi";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
@@ -7,13 +7,17 @@ export default function AdminUsersPage() {
   const [filter, setFilter] = useState("all");
 
   useEffect(() => {
-    let q = supabase.from("profiles").select("*").order("created_at", { ascending: false });
-    if (filter !== "all") q = q.eq("role", filter);
-    q.then(({ data }) => { setUsers(data || []); setLoading(false); });
+    setLoading(true);
+    djangoApi.profiles.list({ role: filter })
+      .then((data) => {
+        setUsers([...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, [filter]);
 
   async function changeRole(id, role) {
-    await supabase.from("profiles").update({ role }).eq("id", id);
+    await djangoApi.profiles.updateRole(id, role);
     setUsers(u => u.map(x => x.id === id ? { ...x, role } : x));
   }
 

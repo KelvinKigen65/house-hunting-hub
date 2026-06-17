@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { djangoApi } from "../lib/djangoApi";
 import PropertyCard from "../components/ui/PropertyCard";
-import heroImage from "../assets/hero.png";
 import houseLogo from "../assets/house-logo.png";
 
 const AREAS = ["All Areas", "Town Centre", "Kirimari", "Kithimu", "Ngandori", "Runyenjes", "Ishiara", "Siakago"];
+const EMBU_MAP_URL = "https://www.openstreetmap.org/export/embed.html?bbox=37.309%2C-0.61%2C37.60%2C-0.42&layer=mapnik&marker=-0.539%2C37.457";
 
 const FEATURES = [
   {
@@ -37,25 +37,21 @@ export default function HomePage() {
     let mounted = true;
     (async () => {
       try {
-        const { data } = await supabase
-          .from("properties")
-          .select("*")
-          .eq("status", "verified")
-          .eq("is_available", true)
-          .order("updated_at", { ascending: false })
-          .limit(6);
-        if (mounted && data) setFeatured(data);
+        const data = await djangoApi.properties.list({ publicOnly: true });
+        if (mounted) {
+          setFeatured(
+            [...data]
+              .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+              .slice(0, 6)
+          );
+        }
       } catch (err) {
         console.warn("Failed to fetch featured properties:", err.message);
       }
 
       try {
-        const [{ count: properties }, { count: landlords }, { count: tenants }] = await Promise.all([
-          supabase.from("properties").select("*", { count: "exact", head: true }).eq("status", "verified"),
-          supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "landlord"),
-          supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "tenant"),
-        ]);
-        if (mounted) setStats({ properties: properties || 0, landlords: landlords || 0, tenants: tenants || 0 });
+        const statsData = await djangoApi.stats.public();
+        if (mounted) setStats(statsData);
       } catch (err) {
         console.warn("Failed to fetch stats:", err.message);
       }
@@ -136,10 +132,19 @@ export default function HomePage() {
               <div className="absolute inset-4 rounded-[2.25rem] bg-gradient-to-br from-sky-300/25 to-fuchsia-300/25 blur-2xl" />
               <div className="relative overflow-hidden rounded-[2rem] border border-white/20 bg-white/10 p-4 shadow-2xl shadow-black/30 backdrop-blur">
                 <div className="rounded-[1.5rem] bg-white p-4 text-gray-900 shadow-xl">
-                  <div className="relative aspect-[4/3] overflow-hidden rounded-[1.25rem] bg-gradient-to-br from-slate-100 to-sky-50">
-                    <img src={heroImage} alt="Modern rental home illustration" className="h-full w-full object-contain p-6" />
-                    <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-brand-700 shadow-sm">
-                      Featured areas
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-[1.25rem] bg-slate-100">
+                    <iframe
+                      title="Map of Embu rental areas"
+                      src={EMBU_MAP_URL}
+                      className="h-full w-full border-0"
+                      loading="lazy"
+                    />
+                    <div className="pointer-events-none absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-brand-700 shadow-sm">
+                      Embu map
+                    </div>
+                    <div className="pointer-events-none absolute bottom-4 right-4 rounded-2xl bg-slate-950/80 px-4 py-3 text-left text-white shadow-lg backdrop-blur">
+                      <p className="text-xs uppercase tracking-[0.18em] text-sky-200">Centre</p>
+                      <p className="text-lg font-bold">Embu Town</p>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-3 gap-3">
@@ -153,19 +158,6 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="absolute -left-2 bottom-10 hidden w-56 rounded-3xl border border-white/20 bg-white/95 p-4 text-gray-900 shadow-xl lg:block">
-                <div className="flex items-center gap-3">
-                  <img src={houseLogo} alt="" aria-hidden="true" className="h-10 w-10" />
-                  <div>
-                    <p className="text-sm font-bold">Tenant-ready</p>
-                    <p className="text-xs text-gray-500">Listings, bookings, inquiries</p>
-                  </div>
-                </div>
-              </div>
-              <div className="absolute -right-1 top-10 hidden rounded-3xl border border-white/20 bg-slate-950/80 p-4 text-white shadow-xl backdrop-blur lg:block">
-                <p className="text-xs uppercase tracking-[0.18em] text-sky-200">Safety score</p>
-                <p className="mt-1 text-3xl font-bold">Verified</p>
-              </div>
             </div>
           </div>
         </div>
@@ -179,7 +171,7 @@ export default function HomePage() {
               { label: "Verified Listings", value: stats.properties, note: "currently visible" },
               { label: "Landlords", value: stats.landlords, note: "registered owners" },
               { label: "Happy Tenants", value: stats.tenants, note: "tenant accounts" },
-            ].map(({ label, value }) => (
+            ].map(({ label, value, note }) => (
               <div key={label} className="rounded-3xl bg-slate-50 px-5 py-6 ring-1 ring-gray-100">
                 <p className="font-display text-4xl font-bold text-brand-600">{value}+</p>
                 <p className="mt-1 text-sm font-semibold text-gray-900">{label}</p>
@@ -191,26 +183,22 @@ export default function HomePage() {
       </section>
 
       {/* How it works */}
-      <section className="py-20">
+      <section className="py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.22em] text-brand-600">A cleaner rental path</p>
-              <h2 className="mt-2 font-display text-3xl font-bold text-gray-950">How It Works</h2>
-            </div>
-            <p className="max-w-2xl text-gray-500">Designed around the decisions tenants actually make: location, trust, price, and whether the landlord can respond.</p>
+          <div className="mb-8">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-brand-600">How it works</p>
+            <h2 className="mt-2 font-display text-3xl font-bold text-gray-950">Find and book in three steps</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {FEATURES.map(({ icon, title, desc }, index) => (
-              <div key={title} className="group rounded-[1.75rem] border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-fuchsia-100 text-brand-700 ring-1 ring-brand-100">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={icon} />
-                  </svg>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {FEATURES.map(({ title, desc }, index) => (
+              <div key={title} className="flex gap-4 rounded-2xl bg-white p-5 ring-1 ring-gray-100">
+                <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">
+                  {index + 1}
                 </div>
-                <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-gray-400">Step {index + 1}</p>
-                <h3 className="mt-2 font-display text-xl font-bold text-gray-950">{title}</h3>
-                <p className="mt-3 text-sm leading-6 text-gray-500">{desc}</p>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-gray-950">{title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-gray-500">{desc}</p>
+                </div>
               </div>
             ))}
           </div>

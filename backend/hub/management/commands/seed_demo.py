@@ -25,59 +25,36 @@ class Command(BaseCommand):
         landlord = self.create_user("landlord@example.com", "Grace Wanjiku", Profile.Role.LANDLORD, "+254 700 111 222")
         tenant = self.create_user("tenant@example.com", "Brian Mwangi", Profile.Role.TENANT, "+254 700 333 444")
 
-        properties = [
-            {
-                "title": "Spacious 2-Bedroom in Embu Town",
-                "description": "Bright rooms, reliable water, secure compound, and easy access to town.",
-                "location": "Blue Valley Estate, Embu",
-                "area": "Town Centre",
-                "price": 18000,
-                "bedrooms": 2,
-                "bathrooms": 1,
-                "property_type": Property.PropertyType.APARTMENT,
-                "amenities": ["water", "electricity", "parking", "security"],
-                "status": Property.Status.VERIFIED,
-            },
-            {
-                "title": "Affordable Bedsitter near Kirimari",
-                "description": "Compact bedsitter ideal for students or young professionals.",
-                "location": "Kirimari, near main road",
-                "area": "Kirimari",
-                "price": 6500,
-                "bedrooms": 1,
-                "bathrooms": 1,
-                "property_type": Property.PropertyType.BEDSITTER,
-                "amenities": ["water", "electricity"],
-                "status": Property.Status.VERIFIED,
-            },
-            {
-                "title": "Family House in Runyenjes",
-                "description": "Quiet family home with a small garden and parking.",
-                "location": "Runyenjes town outskirts",
-                "area": "Runyenjes",
-                "price": 25000,
-                "bedrooms": 3,
-                "bathrooms": 2,
-                "property_type": Property.PropertyType.HOUSE,
-                "amenities": ["water", "electricity", "parking", "garden"],
-                "status": Property.Status.PENDING,
-            },
+        listings = [
+            ("Spacious 2-Bedroom in Embu Town", "Blue Valley Estate, Embu", "Town Centre", 18000, 2, Property.PropertyType.APARTMENT, Property.Status.VERIFIED, ["water", "electricity", "parking", "security"]),
+            ("Affordable Bedsitter near Kirimari", "Kirimari, near main road", "Kirimari", 6500, 1, Property.PropertyType.BEDSITTER, Property.Status.VERIFIED, ["water", "electricity"]),
+            ("Family House in Runyenjes", "Runyenjes town outskirts", "Runyenjes", 25000, 3, Property.PropertyType.HOUSE, Property.Status.PENDING, ["water", "electricity", "parking", "garden"]),
         ]
-
-        created = []
-        for item in properties:
+        properties = []
+        for title, location, area, price, beds, kind, status, amenities in listings:
             prop, _ = Property.objects.get_or_create(
                 landlord=landlord,
-                title=item["title"],
-                defaults={**item, "is_available": True},
+                title=title,
+                defaults={
+                    "description": "Clean, convenient rental property with easy access to local amenities.",
+                    "location": location,
+                    "area": area,
+                    "price": price,
+                    "bedrooms": beds,
+                    "bathrooms": 1,
+                    "property_type": kind,
+                    "amenities": amenities,
+                    "status": status,
+                    "is_available": True,
+                },
             )
-            created.append(prop)
+            properties.append(prop)
 
-        SavedProperty.objects.get_or_create(tenant=tenant, property=created[0])
+        SavedProperty.objects.get_or_create(tenant=tenant, property=properties[0])
         Booking.objects.get_or_create(
             tenant=tenant,
             landlord=landlord,
-            property=created[0],
+            property=properties[0],
             viewing_date="2026-06-20",
             viewing_time="10:00 AM",
             defaults={"message": "I would like to view it this weekend."},
@@ -85,7 +62,7 @@ class Command(BaseCommand):
         Inquiry.objects.get_or_create(
             tenant=tenant,
             landlord=landlord,
-            property=created[1],
+            property=properties[1],
             message="Is the rent inclusive of water?",
         )
 
@@ -99,8 +76,5 @@ class Command(BaseCommand):
         if created:
             user.set_password("password123")
             user.save(update_fields=["password"])
-        Profile.objects.update_or_create(
-            user=user,
-            defaults={"full_name": full_name, "role": role, "phone": phone},
-        )
+        Profile.objects.update_or_create(user=user, defaults={"full_name": full_name, "role": role, "phone": phone})
         return user
